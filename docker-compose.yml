@@ -258,9 +258,11 @@ services:
         pid: host
         networks:
             - backend_network
-        volumes: 
-            - /:/host:ro,rslave
-        command: "--path.rootfs=/host"
+        # volumes: 
+        #     - /:/host:ro,rslave
+        # command: "--path.rootfs=/host"
+        ## for some reasons, on Mac M3 the above 3 lines didn't work
+        command: "--path.rootfs=false"
 
     # cadvisor
     cadvisor:

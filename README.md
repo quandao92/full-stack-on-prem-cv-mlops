@@ -15,6 +15,7 @@
 - [How everything works together](#how-everything-works-together)
 - [From On-Premises to On-Cloud](#from-on-premises-to-on-cloud)
 - [DB schemas](#db-schemas)
+- [Troubleshooting](#troubleshooting)
 
 # Overview
 Welcome to our comprehensive on-premises MLOps ecosystem designed specifically for Computer Vision tasks, with a primary focus on image classification. This repository equips you with everything you need, from a development workspace in Jupyter Lab/Notebook to production-level services. The best part? It only takes **"1 config and 1 command"** to run the whole system from building the model to deployment! We've integrated numerous best practices to ensure scalability and reliability while maintaining flexibility. While our primary use case revolves around image classification, our project structure can easily adapt to a wide range of ML/DL developments, even transitioning from on-premises to cloud!
@@ -151,3 +152,6 @@ To avoid overwhelming complexity, we've kept it simple with only two tables. The
 Noteworthy: `input_img`, `raw_hm_img`, and `overlaid_img` are base64-encoded images stored as strings. `uae_feats` and `bbsd_feats` are arrays of embedding features for our drift detection algorithms.
 
 <img src="./files/dl_service_erd.png">
+
+# Troubleshooting
+- If you face `ImportError: /lib/aarch64-linux-gnu/libGLdispatch.so.0: cannot allocate memory in static TLS block` error, try `export LD_PRELOAD=/lib/aarch64-linux-gnu/libGLdispatch.so.0` then rerun your script.

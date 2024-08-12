@@ -6,6 +6,11 @@ ARG DL_SERVICE_PORT=$DL_SERVICE_PORT
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         curl \
         tzdata \
+        # for hdf5
+        # look like a new version of hdf5 require 'libhdf5-dev' package
+        pkg-config \
+        build-essential \
+        libhdf5-dev \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 # FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
 
 USER root
@@ -28,12 +28,14 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
         # for DeepChecks
         libxml2-dev \
         libxslt-dev \
-        # required for prefect
+        # for prefect
         tzdata \
-        # lib for opencv
+        # for opencv
         libsm6 \
         libxrender1 \
         libfontconfig1 \
+        # for hdf5
+        libhdf5-dev \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -96,7 +98,8 @@ ENV PATH=$CONDA_DIR/bin:$PATH \
 # update conda
 RUN conda update -n base conda
 
-RUN sudo -E env "PATH=$PATH" conda install -c conda-forge notebook jupyterlab jupyterhub && \
+# add hdf5 here with conda is better than installing it with apt
+RUN sudo -E env "PATH=$PATH" conda install -c conda-forge -y notebook jupyterlab jupyterhub && \
     jupyter notebook --generate-config --allow-root && \
     echo 'c.ServerApp.root_dir = "/"' >> /home/$NB_USER/.jupyter/jupyter_notebook_config.py && \
     echo 'c.ServerApp.ip = "0.0.0.0"' >> /home/$NB_USER/.jupyter/jupyter_notebook_config.py && \
