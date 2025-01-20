@@ -1,4 +1,4 @@
-numpy==1.25.2
+numpy==1.25.2 #1.25.2
 Pillow==10.0.0
 tensorflow==2.10.0
 git+https://github.com/marcown/imgaug.git
@@ -17,3 +17,4 @@ SQLAlchemy==1.4.49
 psycopg2-binary==2.9.7
 torchvision==0.15.2
 deepchecks[vision]==0.17.4
+griffe==0.49.0

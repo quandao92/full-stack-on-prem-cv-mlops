@@ -1,6 +1,7 @@
 requests>=2.31.0
 numpy==1.25.2
 Pillow==10.0.0
+# tensorflow==2.10.0
 tensorflow==2.10.0
 opencv-python-headless==4.8.0.74
 fastapi==0.101.1

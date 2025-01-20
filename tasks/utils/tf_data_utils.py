@@ -42,26 +42,59 @@ def augment(x, y, augmenter):
                            x.dtype)
     return x, y
 
-def build_data_pipeline(annot_df: pd.DataFrame, classes: List[str], split: str, img_size: List[int],
-                        batch_size: int=8, do_augment: bool=False, augmenter: iaa=None):
-    df = annot_df[annot_df['split']==split]
-    path = df['abs_path']
-    label = df[classes]
+
+# Functions for Time Series Data Pipeline
+def load_time_series(data: tf.Tensor, label: tf.Tensor):
+    data = tf.cast(data, tf.float32)
+    label = tf.cast(label, tf.float32)
+    return data, label
+
+def normalize_time_series(data, label):
+    data = (data - tf.reduce_min(data)) / (tf.reduce_max(data) - tf.reduce_min(data))
+    return data, label
+
+
+# Unified Data Pipeline for Image and Time Series
+def build_data_pipeline(annot_df: pd.DataFrame, classes: List[str], split: str, data_type: str, 
+                        img_size: List[int] = None, time_step: int = None, batch_size: int = 8, 
+                        do_augment: bool = False, augmenter: iaa = None):
+    """
+    Unified data pipeline for both image and time series data.
+    - `data_type`: 'image' or 'timeseries'.
+    """
+    df = annot_df[annot_df['split'] == split]
     
-    pipeline = tf.data.Dataset.from_tensor_slices((path, label))
-    pipeline = (pipeline
-                .shuffle(len(df))
-                .map(lambda path, label: load_data(path, label, target_size=img_size), 
-                                                          num_parallel_calls=AUTOTUNE)
-               )
-                            
-    if do_augment and augmenter:
-        pipeline = pipeline.map(lambda x,y: augment(x, y, augmenter), num_parallel_calls=AUTOTUNE)
+    if data_type == 'image':
+        # Image pipeline
+        path = df['abs_path']
+        label = df[classes]
+        pipeline = tf.data.Dataset.from_tensor_slices((path, label))
+        pipeline = (pipeline
+                    .shuffle(len(df))
+                    .map(lambda path, label: load_data(path, label, target_size=img_size), num_parallel_calls=AUTOTUNE))
+        
+        if do_augment and augmenter:
+            pipeline = pipeline.map(lambda x, y: augment(x, y, augmenter), num_parallel_calls=AUTOTUNE)
+        
+        pipeline = (pipeline
+                    .map(normalize, num_parallel_calls=AUTOTUNE)
+                    .batch(batch_size)
+                    .prefetch(AUTOTUNE))
     
-    pipeline = (pipeline
-                .map(normalize, num_parallel_calls=AUTOTUNE)
-                .batch(batch_size)
-                .prefetch(AUTOTUNE)
-               )
-                
+    elif data_type == 'timeseries':
+        # Time series pipeline
+        sequences = df['sequence'].apply(lambda x: tf.convert_to_tensor(x)).values
+        labels = df['label'].apply(lambda x: tf.convert_to_tensor(x)).values
+        
+        pipeline = tf.data.Dataset.from_tensor_slices((sequences, labels))
+        pipeline = (pipeline
+                    .shuffle(len(df))
+                    .map(load_time_series, num_parallel_calls=AUTOTUNE)
+                    .map(normalize_time_series, num_parallel_calls=AUTOTUNE)
+                    .batch(batch_size)
+                    .prefetch(AUTOTUNE))
+    
+    else:
+        raise ValueError(f"Unsupported data_type: {data_type}. Choose 'image' or 'timeseries'.")
+    
     return pipeline

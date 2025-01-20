@@ -1,10 +1,13 @@
 import os
 import time
 import pandas as pd
-from typing import List
+import numpy as np
+from typing import List, Tuple, Union
 from dvc.repo import Repo
 from git import Git, GitCommandError
 from prefect import task, get_run_logger
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.model_selection import train_test_split
 from deepchecks.vision import classification_dataset_from_directory
 from deepchecks.vision.suites import train_test_validation
 
@@ -70,3 +73,65 @@ def prepare_dataset(ds_root: str, ds_name: str, dvc_tag: str, dvc_checkout: bool
                 'The DvC will not check and pull the dataset repo, so please make sure they are correct.')
         
     return ds_repo_path, annotation_df
+
+
+
+
+
+
+#======================CODE FOR TIME SERIES==============================================
+
+@task(name='load_time_series_csv')
+def load_time_series_csv(file_path: str, date_col: str, target_col: str) -> pd.DataFrame:
+    logger = get_run_logger()
+    logger.info(f"Loading time series data from {file_path}...")
+
+    data = pd.read_csv(file_path)
+    if date_col not in data.columns or target_col not in data.columns:
+        raise ValueError(f"Missing required columns: {date_col} or {target_col}")
+
+    data[date_col] = pd.to_datetime(data[date_col])
+    data = data.sort_values(by=date_col)
+
+    logger.info(f"Loaded data with shape {data.shape}")
+    return data[[date_col, target_col]]
+
+
+@task(name='prepare_time_series_data')
+def prepare_time_series_data(data: pd.DataFrame, time_step: int, target_col: str) -> Tuple[np.ndarray, np.ndarray, MinMaxScaler]:
+    logger = get_run_logger()
+    logger.info(f"Preparing time series data with time_step={time_step}...")
+
+    if data[target_col].isnull().any():
+        raise ValueError(f"Column {target_col} contains missing values.")
+    if not np.issubdtype(data[target_col].dtype, np.number):
+        raise ValueError(f"Column {target_col} must be numeric.")
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    target_values = scaler.fit_transform(data[[target_col]])
+
+    X, y = [], []
+    for i in range(len(target_values) - time_step):
+        X.append(target_values[i:i + time_step, 0])
+        y.append(target_values[i + time_step, 0])
+    X, y = np.array(X), np.array(y)
+
+    logger.info(f"Data prepared: X shape={X.shape}, y shape={y.shape}")
+    return X, y, scaler
+
+
+
+@task(name='split_time_series_data')
+def split_time_series_data(X: np.ndarray, y: np.ndarray, test_size: float = 0.2, val_size: float = 0.1):
+    logger = get_run_logger()
+    logger.info("Splitting time series data...")
+
+    if len(X) < 10:
+        raise ValueError("Dataset is too small to split. Ensure it contains enough samples.")
+
+    X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=test_size, shuffle=False)
+    val_split = val_size / (1 - test_size)
+    X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=val_split, shuffle=False)
+
+    logger.info(f"Split completed: Train {X_train.shape}, Val {X_val.shape}, Test {X_test.shape}")
+    return X_train, X_val, X_test, y_train, y_val, y_test

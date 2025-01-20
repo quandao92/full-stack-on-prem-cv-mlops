@@ -1,46 +1,40 @@
 import os
-import base64
-import requests
-import shutil
-from io import BytesIO
-from fastapi import FastAPI, Request, UploadFile
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse
-
-PREDICT_ENDPOINT = os.getenv("PREDICT_ENDPOINT", "http://dl_service:4242/predict/")
+import subprocess
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 app = FastAPI()
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+class RunFlowRequest(BaseModel):
+    config_path: str
+    model_type: str
 
-templates = Jinja2Templates(directory='templates')
+@app.post("/run_flow/")
+async def run_flow(request: RunFlowRequest):
+    try:
+        # Đặt đường dẫn tới môi trường Conda
+        conda_env_name = "computer-viz-dl"
+        command = [
+            "bash", "-c",
+            f"source ~/miniconda3/etc/profile.d/conda.sh && conda activate {conda_env_name} && python run_flow.py --config {request.config_path} --model_type {request.model_type}"
+        ]
 
-cached_img_file = None
-cached_encoded_img = None
+        # Thực thi lệnh
+        process = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            shell=True
+        )
 
-@app.get('/')
-def index(request: Request):
-    return templates.TemplateResponse('index.html', {'request': request})
+        # Kiểm tra kết quả
+        if process.returncode != 0:
+            raise Exception(process.stderr)
 
-@app.post('/')
-def upload_image(request: Request, file: UploadFile):
-    global cached_img_file
-    global cached_encoded_img
-    
-    cached_img_file = file.file.read()
-    file.file.close()
+        return {
+            "status": "success",
+            "output": process.stdout
+        }
 
-    # encode the input image
-    cached_encoded_img = base64.b64encode(cached_img_file).decode('utf-8')
-    return templates.TemplateResponse('index.html', {'request': request, 'img': cached_encoded_img})
-
-@app.post('/call_api')
-def call_api(request: Request):
-    res = requests.post(PREDICT_ENDPOINT, files={'file':cached_img_file})
-    res = res.json()
-    pred_result = res['prediction']
-    # this will be a list of tuple('class': prob)
-    sorted_pred = list(reversed(sorted(pred_result.items(), key=lambda x: x[1])))
-    return templates.TemplateResponse('index.html', {'request': request, 'img': cached_encoded_img, 'model_name':res['model_name'], 'pred_result': sorted_pred, 'raw_hm_img': res['overlaid_img']})
-    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"error": str(e)})

@@ -1,9 +1,13 @@
-FROM ubuntu:20.04
-# FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
+# FROM ubuntu:20.04
+
+# for use GPU in jupyter
+FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu20.04
+
 
 USER root
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        nvidia-container-toolkit \
         build-essential \
         curl \
         libfreetype6-dev \
@@ -124,3 +128,17 @@ EXPOSE $JUPYTER_PORT
 
 # Run Jupyter lab as Docker main process
 CMD jupyter lab --port ${JUPYTER_PORT}
+
+# Thêm biến môi trường toàn cục
+ENV LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libGLdispatch.so.0
+
+# NVIDIA Container Runtime
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+ENV LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
+ENV PATH=/usr/local/cuda-11.8/bin:$PATH
+# ENV LD_LIBRARY_PATH=/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH
+
+
+# Thêm vào .bashrc của người dùng
+RUN echo "export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libGLdispatch.so.0" >> /home/$NB_USER/.bashrc

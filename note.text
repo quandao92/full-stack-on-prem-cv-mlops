@@ -1,0 +1,14 @@
+add griffe==0.49.0 to requirements.txt in service/prefect and service/prefect_worker
+
+1. Open the Jupyter lab on port 8888 http://localhost:8888/lab
+2. Go to the workspace directory cd ~/workspace/
+3. Activate the conda environment (the name is configurable in docker-compose.yml) conda activate computer-viz-dl
+4. Run:  python run_flow.py --config configs/full_flow_config.yaml
+
+5. If you face ImportError: /lib/aarch64-linux-gnu/libGLdispatch.so.0: cannot allocate memory in static TLS block error, 
+try "export LD_PRELOAD=/lib/aarch64-linux-gnu/libGLdispatch.so.0" then rerun your script.
+
+
+# Chạy flow với config và model_type tùy chọn
+python run_flow.py --config configs/full_flow_config.yaml --model_type BiLSTM
+model_type: LSTM, GRU, BiLSTM, Conv1D-BiLSTM

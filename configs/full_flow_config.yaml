@@ -1,10 +1,13 @@
 flow_module: flows.full_flow
 
+data_type: timeseries  # Specify 'image' or 'timeseries'
+
 model:
-    model_name: animals10_classifier_50px_demo
+    model_name: stock_prediction
     input_size:
-        w: 50
-        h: 50
+        w: 1
+        h: 30
+    time_step: 30  # For time-series data
     classes:
         - butterfly
         - cat
@@ -16,46 +19,70 @@ model:
         - sheep
         - spider
         - squirrel
+    model_type: BiLSTM # LSTM, GRU, BiLSTM, Conv1D-BiLSTM
+    version: ver001
     classifier_activation: softmax
     classifier_type: multi-class
     classification_layer: classify_head
     save_dir: /home/ariya/workspace/models/
     drift_detection:
         uae_model_suffix: _uae
-        uae_encoding_dims: 32
+        uae_encoding_dims: 128
         bbsd_model_suffix: _bbsd
         bbsd_layer_idx: -1
         reference_data_suffix: _ref_data
-        reference_data_n_sample: 5000
-        
+        reference_data_n_sample: 1000
+
 dataset:
     ds_root: /home/ariya/workspace/datasets/
-    ds_name: animals10-dvc
+    ds_name: animals10-dvc  # For images
     dvc_tag: v2.0.0
-    dvc_checkout: false
-    
+    dvc_checkout: true
+    file_path: /home/ariya/workspace/datasets/timeseries/37510-P0100_재고량.csv   # Đường dẫn file time-series
+    date_col: TransactionDate  # Cột chứa thông tin ngày
+    target_col: Stock  # Cột mục tiêu
+    time_step: 30  # Thêm khóa này để chỉ định số bước thời gian
+
+
 train:
     hparams:
-        epochs: 5
+        epochs: 100
         batch_size: 64
         init_lr: 0.001
+        lstm_units: 128  # For time-series
+        conv_filters: 128  # For Conv1D-BiLSTM
+        kernel_size: 3
+        dropout_rate: 0.2
     mlflow:
-        exp_name: Train Animals10 classifier
-        exp_desc: Train a classifier model
+        exp_name: Time Series Model Training
+        exp_desc: Train a model for stock prediction time-series data
         exp_tags:
-            dataset: Animals10
+            dataset: Mixed
             
 evaluate:
-    subset: test
-    mlflow:
-        exp_name: Evaluate Animals10 classifier
-        exp_desc: Evaluate a classifier model
-        exp_tags:
-            dataset: Animals10
+    data_type: timeseries  # Chọn 'image' hoặc 'timeseries'
+    image:  # Cấu hình riêng cho dữ liệu image
+        subset: test
+        model_dir: /home/ariya/workspace/models/animals10_classifier_50px_trial7  # Thư mục chứa mô hình image
+        model_metadata_file_path: /home/ariya/workspace/models/animals10_classifier_50px_trial7.yaml
+        mlflow:
+            exp_name: Evaluate Animals10 Classifier
+            exp_desc: Evaluate an image classification model
+            exp_tags:
+                dataset: Animals10
+    timeseries:  # Cấu hình riêng cho dữ liệu timeseries
+        subset: test
+        model_dir: /home/ariya/workspace/models/timeseries/{model_name}  # Thư mục chứa mô hình timeseries
+        model_metadata_file_path: /home/ariya/workspace/models/timeseries/{model_name}.yaml
+        mlflow:
+            exp_name: Time Series Model Evaluation
+            exp_desc: Evaluate a time-series model for stock prediction
+            exp_tags:
+                dataset: Time Series Data
             
-deploy:
-    prefect:
-        git_repo_root: ~/workspace/deployments/prefect-deployments
-        # this should match the deployment name in prefect.yaml 
-        # at the root of the specified repo
-        deployment_name: drift_detection_evidently
+# deploy:
+#     prefect:
+#         git_repo_root: ~/workspace/deployments/prefect-deployments
+#         # this should match the deployment name in prefect.yaml 
+#         # at the root of the specified repo
+#         deployment_name: drift_detection_evidently

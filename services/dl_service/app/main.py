@@ -67,6 +67,7 @@ def update_model(request: Request, model_metadata_file_path: str, background_tas
     global bbsd
     start_time = time.time()
     logger.info('Updating model')
+    print(model_metadata_file_path)
     try:
         # prepare drift detectors along with the model here
         model, model_meta = tf_load_model(model_metadata_file_path)

@@ -1,4 +1,4 @@
-version: '3.8'
+# version: '3.8'
 
 services:
     # dev workspace
@@ -126,6 +126,8 @@ services:
             - mlops_network
         volumes:
             - central_storage:/service/central_storage
+            - ./models:/home/ariya/workspace/models 
+            - ./deployments/prefect-deployments:/home/ariya/workspace/deployments/prefect-deployments  #add to deploy model in prefect
         depends_on:
             prefect:
                 condition: service_healthy
@@ -274,7 +276,7 @@ services:
         ports:
             - "${CADVISOR_PORT}:8080"
         volumes:
-            - /:/rootfs:ro
+            - /c/Users:/rootfs:ro
             - /var/run:/var/run:ro
             - /sys:/sys:ro
             - /var/lib/docker/:/var/lib/docker:ro
@@ -295,6 +297,8 @@ services:
             - POSTGRES_USER=postgres
             - POSTGRES_PASSWORD=postgres
             - POSTGRES_DB=postgres
+        ports:
+            - "5432:5432"
         networks:
             - mlops_network
         volumes:

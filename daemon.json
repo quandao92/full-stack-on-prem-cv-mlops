@@ -1,0 +1,7 @@
+{
+    "max-concurrent-downloads": 5,
+    "features": {
+      "buildkit": true
+    },
+    "insecure-registries" : ["your-registry.com"]
+  }

@@ -1,7 +1,7 @@
 flow_module: flows.deploy_flow
         
 deploy:
-    model_metadata_file_name: animals10_classifier_50px_trial7.yaml
+    model_metadata_file_name: animals10_classifier_50px_demo_03.yaml
     prefect:
         git_repo_root: ~/workspace/deployments/prefect-deployments
         # this should match the deployment name in prefect.yaml 
