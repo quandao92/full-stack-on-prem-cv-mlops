@@ -1,0 +1,66 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: mlops-deployments
+prefect-version: 2.13.4
+
+# variables:
+#   monitor_pool_name: "default-agent-pool"
+#   current_model_metadata_file: "animals10_classifier_50px_test.yaml"
+
+# build section allows you to manage and build docker images
+build: null
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push: null
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.git_clone:
+    id: clone-step
+    repository: https://github.com/jomariya23156/prefect-deployments.git
+    branch: master
+    # access_token: "{{ prefect.blocks.secret.dev-only-token }}"
+- prefect.deployments.steps.pip_install_requirements:
+    directory: "{{ clone-step.directory }}"
+    requirements_file: requirements.txt
+    stream_output: False
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: hi_mom_over_again
+  version: null
+  tags: []
+  description: "Say Hi Mom!"
+  schedule: {}
+  entrypoint: all_flows.py:hi_mom_flow
+  parameters: {}
+  work_pool:
+    # name: production-model-pool
+    name: "default-agent-pool"
+    work_queue_name: null
+    job_variables: {}
+  
+- name: drift_detection_evidently
+  version: null
+  tags: []
+  description: Compute Evidently Reports and Test suites to detect data drift
+  schedule:
+    # run every 7 days aka weekly aka once a week
+    rrule: 'FREQ=DAILY;INTERVAL=7'
+  entrypoint: all_flows.py:detect_drift_flow
+  parameters: 
+    # set default flow parameters
+    #model_metadata_file_path: "home/ariya/workspace/models/animals10_classifier_50px_trial7.yaml"
+    model_metadata_file_path: "{{ prefect.variables.current_model_metadata_file }}"                  #"{{ prefect.variables.current_model_metadata_file }}"
+    last_days: 7
+    last_n: 500
+    evidently_project_name: "production_model_monitor"
+    evidently_project_desc: "Dashboard for monitoring production models"
+  work_pool:
+    # name: production-model-pool
+    name: "default-agent-pool" #"{{ prefect.variables.monitor_pool_name }}"
+    work_queue_name: null
+    job_variables: {}

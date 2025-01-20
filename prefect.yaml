@@ -1,0 +1,131 @@
+# Welcome to your prefect.yaml file! You can use this file for storing and managing
+# configuration for deploying your flows. We recommend committing this file to source
+# control along with your flow code.
+
+# Generic metadata about this project
+name: workspace
+prefect-version: 2.13.4
+
+# build section allows you to manage and build docker images
+build:
+
+# push section allows you to manage if and how this project is uploaded to remote locations
+push:
+
+# pull section allows you to provide instructions for cloning this project in remote locations
+pull:
+- prefect.deployments.steps.set_working_directory:
+    directory: /home/ariya/workspace
+
+# the deployments section allows you to provide configuration for deploying flows
+deployments:
+- name: deèefault
+  version:
+  tags: []
+  description:
+  entrypoint: 
+    deployments/prefect-deployments/detect_drift/detect_drift_flow.py:detect_drift_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+    interval: 10.0
+    anchor_date: '2024-12-24T01:18:07.617937+00:00'
+    timezone: UTC
+- name: deèefault
+  version:
+  tags: []
+  description:
+  entrypoint: deployments/prefect-deployments/hi_mom/hi_mom_flow.py:hi_mom_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+    interval: 10.0
+    anchor_date: '2024-12-24T01:18:50.224187+00:00'
+    timezone: UTC
+- name: default
+  version:
+  tags: []
+  description:
+  entrypoint: 
+    deployments/prefect-deployments/detect_drift/detect_drift_flow.py:detect_drift_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+- name: default
+  version:
+  tags: []
+  description:
+  entrypoint: flows/deploy_flow.py:deploy_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+    interval: 60.0
+    anchor_date: '2024-12-24T01:47:10.088932+00:00'
+    timezone: UTC
+- name: dedefault
+  version:
+  tags: []
+  description:
+  entrypoint: 
+    deployments/prefect-deployments/detect_drift/detect_drift_flow.py:detect_drift_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+    interval: 120.0
+    anchor_date: '2024-12-24T01:59:07.721658+00:00'
+    timezone: UTC
+- name: default
+  version:
+  tags: []
+  description:
+  entrypoint: deployments/prefect-deployments/hi_mom/hi_mom_flow.py:hi_mom_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+    interval: 120.0
+    anchor_date: '2024-12-24T06:17:43.786519+00:00'
+    timezone: UTC
+- name: default
+  version:
+  tags: []
+  description:
+  entrypoint: 
+    deployments/prefect-deployments/000/detect_drift/detect_drift_flow.py:detect_drift_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:
+    interval: 60.0
+    anchor_date: '2024-12-24T06:33:18.950764+00:00'
+    timezone: UTC
+- name: default
+  version:
+  tags: []
+  description:
+  entrypoint: flows/eval_flow.py:eval_flow
+  parameters: {}
+  work_pool:
+    name: production-model-pool
+    work_queue_name:
+    job_variables: {}
+  schedule:

@@ -1,0 +1,346 @@
+# version: '3.8'
+
+services:
+    # dev workspace
+    jupyter:
+        # platform: linux/x86_64 # for others (mostly) or can just remove this line
+        platform: linux/arm64 # for Mac M1
+        container_name: jupyter
+        build:
+            context: ./services/jupyter
+            dockerfile: Dockerfile
+            args:
+                NB_USER: ${JUPYTER_USER}
+                NB_PWD: 123456789
+                NB_UID: 1412
+                CONDA_DIR: /opt/anaconda3
+                ARCH: aarch64 # aarch64 for Mac M1 | x86_64 for others (mostly)
+                JUPYTER_PORT: ${JUPYTER_PORT}
+                MLFLOW_ARTIFACT_ROOT: ${MLFLOW_ARTIFACT_ROOT}
+                CENTRAL_STORAGE_PATH: /home/${JUPYTER_USER}/central_storage
+                MAIN_CONDA_ENV_NAME: computer-viz-dl
+        env_file:
+            - .env
+        environment:
+            - MLFLOW_TRACKING_URI=http://mlflow:${MLFLOW_PORT}
+            - PREFECT_API_URL=http://prefect:${PREFECT_PORT}/api
+            - CENTRAL_STORAGE_PATH=/home/${JUPYTER_USER}/central_storage
+            - DB_CONNECTION_URL=postgresql://dlservice_user:SuperSecurePwdHere@postgres:${POSTGRES_PORT}/dlservice_pg_db
+            - DB_PREDICTION_TABLE_NAME=predictions
+            - DB_API_LOG_TABLE_NAME=api_log
+        networks:
+            - mlops_network
+        ports: 
+            - "${JUPYTER_PORT}:${JUPYTER_PORT}"
+        volumes:
+            - ./:/home/${JUPYTER_USER}/workspace/
+            - mlflow_data:${MLFLOW_ARTIFACT_ROOT}
+            - central_storage:/home/${JUPYTER_USER}/central_storage
+            - evidently_data:/home/${JUPYTER_USER}/workspace/deployments/evidently_workspaces
+        depends_on:
+            - mlflow
+            - prefect
+        # # Unconmment this field down below in case you have CUDA-enabled GPUs
+        # deploy:
+        #     resources:
+        #         reservations:
+        #             devices:
+        #                 - driver: nvidia
+        #                   device_ids: ['all']
+        #                   capabilities: [gpu]
+
+
+    # ML platform / experiment tracking
+    mlflow:
+        platform: linux/arm64
+        container_name: mlflow
+        restart: always
+        build:
+            context: ./services/mlflow
+            dockerfile: Dockerfile
+            args:
+                MLFLOW_PORT: ${MLFLOW_PORT}
+        env_file:
+            - .env
+        environment:
+            - BACKEND_STORE_URI=postgresql://mlflow_user:SuperSecurePwdHere@postgres:${POSTGRES_PORT}/mlflow_pg_db
+        networks:
+            - mlops_network
+        ports:
+            - "${MLFLOW_PORT}:${MLFLOW_PORT}"
+        volumes:
+            - mlflow_data:${MLFLOW_ARTIFACT_ROOT}
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+    # orchestrator
+    prefect:
+        platform: linux/arm64
+        container_name: prefect
+        restart: always
+        build:
+            context: ./services/prefect
+            dockerfile: Dockerfile
+            args:
+                PREFECT_PORT: ${PREFECT_PORT}
+        env_file:
+            - .env
+        environment:
+            - PREFECT_API_URL=http://127.0.0.1:${PREFECT_PORT}/api
+            - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://prefect_user:SuperSecurePwdHere@postgres:${POSTGRES_PORT}/prefect_pg_db
+        networks:
+            - mlops_network
+        ports:
+            - "${PREFECT_PORT}:${PREFECT_PORT}"
+        volumes:
+            - prefect_data:${PREFECT_LOCAL_STORAGE_PATH}
+        depends_on:
+            postgres:
+                condition: service_healthy
+        healthcheck:
+            # healthcheck can't access env variable at compose level
+            # so, $$ to tell compose not to parse this variable and it 
+            # will be substituted with an actual env variable at runtime
+            test: ["CMD-SHELL", "curl $${PREFECT_API_URL}/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    # worker / agent / automation
+    prefect_worker:
+        platform: linux/arm64
+        container_name: prefect_worker
+        build:
+            context: ./services/prefect_worker
+            dockerfile: Dockerfile
+        env_file:
+            - .env
+        environment:
+            - PREFECT_API_URL=http://prefect:${PREFECT_PORT}/api
+            - EVIDENTLY_URL=http://evidently:${EVIDENTLY_PORT}
+            - PREFECT_API_DATABASE_CONNECTION_URL=postgresql+asyncpg://prefect_user:SuperSecurePwdHere@postgres:${POSTGRES_PORT}/prefect_pg_db
+            - DB_CONNECTION_URL=postgresql://dlservice_user:SuperSecurePwdHere@postgres:${POSTGRES_PORT}/dlservice_pg_db
+            - CENTRAL_STORAGE_PATH=/service/central_storage
+        networks:
+            - mlops_network
+        volumes:
+            - central_storage:/service/central_storage
+            - ./models:/home/ariya/workspace/models 
+            - ./deployments/prefect-deployments:/home/ariya/workspace/deployments/prefect-deployments  #add to deploy model in prefect
+        depends_on:
+            prefect:
+                condition: service_healthy
+
+    # model deployment / model service
+    dl_service:
+        platform: linux/arm64
+        container_name: dl_service
+        restart: always
+        build:
+            context: ./services/dl_service
+            dockerfile: Dockerfile
+            args:
+                DL_SERVICE_PORT: ${DL_SERVICE_PORT}
+        env_file:
+            - .env
+        environment:
+            - CENTRAL_STORAGE_PATH=/service/central_storage
+            - DB_CONNECTION_URL=postgresql://dlservice_user:SuperSecurePwdHere@postgres:${POSTGRES_PORT}/dlservice_pg_db
+        networks:
+            - mlops_network
+        volumes:
+            - central_storage:/service/central_storage
+            - ./services/dl_service/app/:/service/app/
+        depends_on:
+            postgres:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD-SHELL", "curl http://127.0.0.1:$${DL_SERVICE_PORT}/health_check"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+
+    # ui for model service
+    web_ui:
+        platform: linux/arm64
+        container_name: web_ui
+        build:
+            context: ./services/web_ui
+            dockerfile: Dockerfile
+            args:
+                WEB_UI_PORT: ${WEB_UI_PORT}
+        env_file:
+            - .env
+        environment:
+            - PREDICT_ENDPOINT=http://nginx:${NGINX_PORT}/predict/
+        networks:
+            - mlops_network
+        ports:
+            - "${WEB_UI_PORT}:${WEB_UI_PORT}"
+        volumes:
+            - ./services/web_ui/app/:/service/app/
+        depends_on:
+            dl_service:
+                condition: service_healthy
+
+    # reverse proxy
+    nginx:
+        platform: linux/arm64
+        container_name: nginx
+        restart: always
+        build:
+            context: ./services/nginx
+            dockerfile: Dockerfile
+        env_file:
+            - .env
+        networks:
+            - mlops_network
+        depends_on:
+            dl_service:
+                condition: service_healthy
+
+    # model monitoring
+    evidently:
+        platform: linux/arm64
+        container_name: evidently
+        build: 
+            context: ./services/evidently
+            dockerfile: Dockerfile
+            args:
+                EVIDENTLY_PORT: ${EVIDENTLY_PORT}
+        env_file:
+            - .env
+        networks:
+            - mlops_network
+        ports:
+            - "${EVIDENTLY_PORT}:${EVIDENTLY_PORT}"
+        volumes:
+            - evidently_data:/service/${EVIDENTLY_WORKSPACE_NAME}
+
+    # overall monitoring & dashboards
+    grafana:
+        platform: linux/arm64
+        image: grafana/grafana-oss:latest
+        container_name: grafana
+        restart: unless-stopped
+        networks:
+            - backend_network
+        ports:
+            - "${GRAFANA_PORT}:3000"
+        volumes:
+            - ./services/grafana/grafana_datasources.yml:/etc/grafana/provisioning/datasources/grafana_datasources.yml:ro
+            - ./services/grafana/grafana_dashboards.yml:/etc/grafana/provisioning/dashboards/grafana_dashboards.yml:ro
+            - ./services/grafana/dashboards:/opt/grafana/dashboards
+            - grafana_data:/var/lib/grafana
+        depends_on:
+            - prometheus
+
+    # time-series database
+    prometheus:
+        platform: linux/arm64
+        image: prom/prometheus:latest
+        container_name: prometheus
+        restart: unless-stopped
+        networks:
+            - backend_network
+        ports:
+            - "${PROMETHEUS_PORT}:9090"
+        volumes:
+            - ./services/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+            - prometheus_data:/prometheus
+        command: "--config.file=/etc/prometheus/prometheus.yaml"
+    
+    # host machine's metrics exporter for prometheus
+    node_exporter:
+        platform: linux/arm64
+        image: quay.io/prometheus/node-exporter:v1.5.0
+        container_name: node_exporter
+        restart: unless-stopped
+        pid: host
+        networks:
+            - backend_network
+        # volumes: 
+        #     - /:/host:ro,rslave
+        # command: "--path.rootfs=/host"
+        ## for some reasons, on Mac M3 the above 3 lines didn't work
+        command: "--path.rootfs=false"
+
+    # cadvisor
+    cadvisor:
+        image: gcr.io/cadvisor/cadvisor:v0.47.0   
+        container_name: cadvisor
+        restart: unless-stopped
+        networks:
+            - backend_network
+        ports:
+            - "${CADVISOR_PORT}:8080"
+        volumes:
+            - /c/Users:/rootfs:ro
+            - /var/run:/var/run:ro
+            - /sys:/sys:ro
+            - /var/lib/docker/:/var/lib/docker:ro
+            - /dev/disk/:/dev/disk:ro
+            # this line is needed to make it work on Mac M1
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        devices:
+            - /dev/kmsg
+        privileged: true
+
+    # sql database
+    postgres:
+        platform: linux/arm64
+        container_name: postgres
+        image: postgres:15.3
+        restart: always
+        environment:
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=postgres
+            - POSTGRES_DB=postgres
+        ports:
+            - "5432:5432"
+        networks:
+            - mlops_network
+        volumes:
+            - ./services/postgres/docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        
+    # ui for database
+    pgadmin:
+        platform: linux/arm64
+        container_name: pgadmin
+        image: dpage/pgadmin4
+        restart: always
+        environment:
+            - PGADMIN_DEFAULT_EMAIL=pgadmin@gmail.com
+            - PGADMIN_DEFAULT_PASSWORD=SuperSecurePwdHere
+        networks:
+            - mlops_network
+        ports:
+            - "16543:80"
+        volumes:
+            - pgadmin_data:/var/lib/pgadmin
+        depends_on:
+            postgres:
+                condition: service_healthy
+
+networks:
+    mlops_network:
+        driver: "bridge"
+    backend_network:
+        driver: "bridge"
+
+volumes:
+    mlflow_data:
+    prefect_data:
+    pgadmin_data:
+    grafana_data:
+    prometheus_data:
+    pgdata:
+    evidently_data:
+    central_storage:

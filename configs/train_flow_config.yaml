@@ -1,0 +1,61 @@
+fflow_module: flows.train_flow
+
+# Model configuration
+model:
+    model_name: animals10_classifier_50px_demo_05
+    input_size:
+        w: 50
+        h: 50
+    time_step: 30  # For time-series data
+    classes:
+        - butterfly
+        - cat
+        - chicken
+        - cow
+        - dog
+        - elephant
+        - horse
+        - sheep
+        - spider
+        - squirrel
+    model_type: Conv1D-BiLSTM  # Specify LSTM, GRU, BiLSTM, or Conv1D-BiLSTM for time-series
+    version: ver001
+    classifier_activation: softmax  # Use None for regression tasks
+    classifier_type: multi-class
+    classification_layer: classify_head
+    save_dir: /home/ariya/workspace/models/
+    drift_detection:
+        uae_model_suffix: _uae
+        uae_encoding_dims: 128
+        bbsd_model_suffix: _bbsd
+        bbsd_layer_idx: -1
+        reference_data_suffix: _ref_data
+        reference_data_n_sample: 5000
+
+# Dataset configuration
+dataset:
+    ds_root: /home/ariya/workspace/datasets/
+    ds_name: animals10-dvc  # For image data
+    dvc_tag: v2.0.0
+    dvc_checkout: true
+    file_path: /home/ariya/workspace/datasets/timeseries/37510-P0100_재고량.csv   # Path to time-series data
+    date_col: TransactionDate  # Column for date in time-series data
+    target_col: Stock  # Column for target variable in time-series data
+    time_step: 30  # Thêm khóa này để chỉ định số bước thời gian
+
+# Training configuration
+train:
+    hparams:
+        epochs: 10  # Increase epochs for time-series data if needed
+        batch_size: 64
+        init_lr: 0.001
+        lstm_units: 128  # For LSTM-based models
+        conv_filters: 128  # For Conv1D-BiLSTM
+        kernel_size: 3
+        dropout_rate: 0.2
+    mlflow:
+        exp_name: Universal Model Training
+        exp_desc: Train a model for both image and time-series data
+        exp_tags:
+            dataset: Mixed
+
